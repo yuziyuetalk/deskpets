@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('deskPets', {
+  platform: process.platform,
   getState: () => ipcRenderer.invoke('state:get'),
   getDisplays: () => ipcRenderer.invoke('displays:get'),
   importMedia: kind => ipcRenderer.invoke('media:import', kind),

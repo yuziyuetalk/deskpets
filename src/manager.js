@@ -13,6 +13,11 @@ const asset = id => state.assets.find(item => item.id === id);
 const pet = () => scene().pets.find(item => item.id === selectedPetId);
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const format = value => Math.round(value * 100);
+document.body.classList.toggle('mac', window.deskPets.platform === 'darwin');
+$('#setting-dock-line').hidden = window.deskPets.platform !== 'darwin';
+$('#data-location').textContent = window.deskPets.platform === 'darwin'
+  ? '素材和设置保存在 .app/Contents/Resources/petsdata'
+  : '所有素材保存在 EXE 旁的 petsdata';
 
 function displayForPet(item) {
   return displays.find(display => display.id === item.monitorId) || displays.find(display => display.primary) || displays[0];
@@ -175,8 +180,9 @@ function renderInspector() {
     <div class="field"><label for="pet-width">大小</label><input id="pet-width" type="range" min="5" max="70" value="${format(item.width)}"><span class="field-value" id="pet-width-value">屏幕宽度的 ${format(item.width)}%</span></div>
     <div class="field"><label for="pet-opacity">不透明度</label><input id="pet-opacity" type="range" min="10" max="100" value="${format(item.opacity)}"><span class="field-value" id="pet-opacity-value">${format(item.opacity)}%</span></div>
     <label class="toggle-line"><span>显示这个桌宠</span><input id="pet-visible" type="checkbox" ${item.visible ? 'checked' : ''}></label>`;
-  const motion = `<div class="field"><label for="pet-speed">播放速度</label><input id="pet-speed" type="range" min="25" max="300" step="5" value="${format(item.speed)}"><span class="field-value" id="pet-speed-value">${item.speed.toFixed(2)}×</span></div><div class="field"><label for="pet-motion">运动路线</label><select id="pet-motion"><option value="fixed" ${item.motion === 'fixed' ? 'selected' : ''}>固定位置</option><option value="wander" ${item.motion === 'wander' ? 'selected' : ''}>自由漫步</option><option value="horizontal" ${item.motion === 'horizontal' ? 'selected' : ''}>左右往返</option><option value="vertical" ${item.motion === 'vertical' ? 'selected' : ''}>上下浮动</option><option value="orbit" ${item.motion === 'orbit' ? 'selected' : ''}>环绕</option><option value="figure8" ${item.motion === 'figure8' ? 'selected' : ''}>8 字形</option><option value="custom" ${item.motion === 'custom' ? 'selected' : ''}>自定义路径</option></select></div>
-    ${item.motion !== 'fixed' ? `<div class="field"><label for="pet-motion-duration">一轮时长</label><input id="pet-motion-duration" type="range" min="4" max="120" value="${item.motionDuration}"><span class="field-value" id="pet-motion-duration-value">${item.motionDuration} 秒</span></div>` : ''}
+  const motion = `<div class="field"><label for="pet-speed">播放速度</label><input id="pet-speed" type="range" min="25" max="300" step="5" value="${format(item.speed)}"><span class="field-value" id="pet-speed-value">${item.speed.toFixed(2)}×</span></div><div class="field"><label for="pet-motion">运动路线</label><select id="pet-motion"><option value="fixed" ${item.motion === 'fixed' ? 'selected' : ''}>固定位置</option><option value="wander" ${item.motion === 'wander' ? 'selected' : ''}>自由漫步</option><option value="follow" ${item.motion === 'follow' ? 'selected' : ''}>追随鼠标指针</option><option value="horizontal" ${item.motion === 'horizontal' ? 'selected' : ''}>左右往返</option><option value="vertical" ${item.motion === 'vertical' ? 'selected' : ''}>上下浮动</option><option value="orbit" ${item.motion === 'orbit' ? 'selected' : ''}>环绕</option><option value="figure8" ${item.motion === 'figure8' ? 'selected' : ''}>8 字形</option><option value="custom" ${item.motion === 'custom' ? 'selected' : ''}>自定义路径</option></select></div>
+    ${!['fixed', 'follow'].includes(item.motion) ? `<div class="field"><label for="pet-motion-duration">一轮时长</label><input id="pet-motion-duration" type="range" min="4" max="120" value="${item.motionDuration}"><span class="field-value" id="pet-motion-duration-value">${item.motionDuration} 秒</span></div>` : ''}
+    ${item.motion === 'follow' ? '<p class="hint">缓慢靠近指针，并与指针保持距离。</p>' : ''}
     ${item.motion === 'custom' ? `<div class="field"><span class="group-label">路径点 · ${item.routePoints.length} 个</span><div class="route-actions"><button id="route-edit" class="secondary">${routeEditing ? '完成编辑' : '在预览中添加点'}</button><button id="route-clear" class="secondary">清空</button></div><p class="hint">点击预览添加点，拖动圆点调整。至少需要 2 个点。</p><div class="route-list">${item.routePoints.map((p, i) => `<div>点 ${i + 1} · ${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}% <button data-route-remove="${i}">×</button></div>`).join('')}</div></div>` : ''}
     <div class="field"><label for="pet-hover-style">靠近效果</label><select id="pet-hover-style"><option value="none" ${item.hoverStyle === 'none' ? 'selected' : ''}>关闭</option><option value="soft" ${item.hoverStyle === 'soft' ? 'selected' : ''}>轻微浮动与光晕</option><option value="sparkle" ${item.hoverStyle === 'sparkle' ? 'selected' : ''}>浮动与微光粒子</option><option value="magic" ${item.hoverStyle === 'magic' ? 'selected' : ''}>浮动与魔法粒子</option></select></div>`;
   root.innerHTML = `<h2>编辑桌宠</h2><p class="sub">视频默认循环播放，修改后自动保存。</p><div class="inspector-tabs"><button data-inspector-tab="basic" class="${inspectorTab === 'basic' ? 'active' : ''}">外观</button><button data-inspector-tab="motion" class="${inspectorTab === 'motion' ? 'active' : ''}">运动与互动</button></div>${inspectorTab === 'motion' ? motion : basic}<div class="inspector-actions"><button id="remove-pet">移除桌宠</button></div>`;
@@ -185,6 +191,8 @@ function renderSettings() {
   $('#setting-login').checked = state.settings.launchAtLogin;
   $('#setting-battery').checked = state.settings.pauseOnBattery;
   $('#setting-fullscreen').checked = state.settings.pauseOnFullscreen;
+  $('#setting-fullscreen-visible').checked = state.settings.showOnFullscreen;
+  $('#setting-dock').checked = state.settings.showDockIconWhenClosed;
   $('#setting-mute').checked = state.settings.mute;
   const themeIcons = { dark: '☾', light: '☀', system: '◐' };
   const themeNames = { dark: '暗黑', light: '亮色', system: '跟随系统' };
@@ -247,7 +255,7 @@ $('#open-settings').addEventListener('click', () => { $('#settings-backdrop').hi
 $('#close-settings').addEventListener('click', () => { $('#settings-backdrop').hidden = true; $('#open-settings').focus(); });
 $('#settings-backdrop').addEventListener('click', event => { if (event.target.id === 'settings-backdrop') $('#close-settings').click(); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('#settings-backdrop').hidden) $('#close-settings').click(); });
-for (const [id, key] of [['setting-login', 'launchAtLogin'], ['setting-battery', 'pauseOnBattery'], ['setting-fullscreen', 'pauseOnFullscreen'], ['setting-mute', 'mute']]) {
+for (const [id, key] of [['setting-login', 'launchAtLogin'], ['setting-dock', 'showDockIconWhenClosed'], ['setting-battery', 'pauseOnBattery'], ['setting-fullscreen', 'pauseOnFullscreen'], ['setting-fullscreen-visible', 'showOnFullscreen'], ['setting-mute', 'mute']]) {
   $(`#${id}`).addEventListener('change', event => window.deskPets.updateSettings({ [key]: event.target.checked }));
 }
 window.deskPets.onTheme(theme => { document.documentElement.dataset.theme = theme; });

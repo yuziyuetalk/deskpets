@@ -13,6 +13,8 @@ const DEFAULT_STATE = () => {
       launchAtLogin: false,
       pauseOnBattery: true,
       pauseOnFullscreen: true,
+      showOnFullscreen: false,
+      showDockIconWhenClosed: true,
       mute: true,
       showPets: true,
       theme: 'dark'
@@ -55,7 +57,7 @@ function normalize(input) {
       width: clamp(pet.width, 0.04, 1, 0.2),
       speed: clamp(pet.speed, 0.25, 3, 1),
       opacity: clamp(pet.opacity, 0.1, 1, 1),
-      motion: ['fixed', 'wander', 'horizontal', 'vertical', 'orbit', 'figure8', 'custom'].includes(pet.motion) ? pet.motion : (pet.roam ? 'wander' : 'fixed'),
+      motion: ['fixed', 'wander', 'follow', 'horizontal', 'vertical', 'orbit', 'figure8', 'custom'].includes(pet.motion) ? pet.motion : (pet.roam ? 'wander' : 'fixed'),
       motionDuration: clamp(pet.motionDuration, 4, 120, 20),
       routePoints: Array.isArray(pet.routePoints) ? pet.routePoints.slice(0, 20).filter(point => point && Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))).map(point => ({ x: clamp(point.x, 0, 1, 0), y: clamp(point.y, 0, 1, 0) })) : [],
       hoverStyle: ['none', 'soft', 'sparkle', 'magic'].includes(pet.hoverStyle) ? pet.hoverStyle : (pet.hoverEffect === false ? 'none' : 'sparkle'),
@@ -65,7 +67,7 @@ function normalize(input) {
   if (!state.scenes.length) state.scenes = DEFAULT_STATE().scenes;
   state.activeSceneId = state.scenes.some(scene => scene.id === input.activeSceneId) ? input.activeSceneId : state.scenes[0].id;
   state.settings = { ...state.settings, ...(input.settings || {}) };
-  for (const key of ['launchAtLogin', 'pauseOnBattery', 'pauseOnFullscreen', 'mute', 'showPets']) {
+  for (const key of ['launchAtLogin', 'pauseOnBattery', 'pauseOnFullscreen', 'showOnFullscreen', 'showDockIconWhenClosed', 'mute', 'showPets']) {
     state.settings[key] = Boolean(state.settings[key]);
   }
   state.settings.theme = ['dark', 'light', 'system'].includes(state.settings.theme) ? state.settings.theme : 'dark';

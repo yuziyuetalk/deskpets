@@ -17,7 +17,7 @@
       <div class="section-head library-head"><span>02 · 素材库</span></div>
       <div class="import-row"><button id="import-video" class="primary small">＋ 视频</button><button id="import-image" class="secondary small">＋ 壁纸</button><button id="import-audio" class="secondary small">＋ 音乐</button></div>
       <div id="asset-list" class="asset-list"></div>
-      <div class="sidebar-foot">所有素材保存在 EXE 旁的 petsdata</div>
+      <div id="data-location" class="sidebar-foot"></div>
     </aside>
 
     <main class="workspace">
@@ -39,7 +39,7 @@
       <div id="inspector-content"></div>
     </aside>
   </div>
-  <div id="settings-backdrop" class="modal-backdrop" hidden><section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div class="dialog-head"><div><h2 id="settings-title">应用设置</h2><p>修改后立即生效</p></div><button id="close-settings" class="title-icon" aria-label="关闭设置">×</button></div><label class="toggle-line"><span>开机静默启动 <small>启动后在系统托盘中运行</small></span><input id="setting-login" type="checkbox"></label><label class="toggle-line"><span>电池供电时暂停</span><input id="setting-battery" type="checkbox"></label><label class="toggle-line"><span>全屏时暂停</span><input id="setting-fullscreen" type="checkbox"></label><label class="toggle-line"><span>桌宠视频静音</span><input id="setting-mute" type="checkbox"></label></section></div>
+  <div id="settings-backdrop" class="modal-backdrop" hidden><section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div class="dialog-head"><div><h2 id="settings-title">应用设置</h2><p>修改后立即生效</p></div><button id="close-settings" class="title-icon" aria-label="关闭设置">×</button></div><label class="toggle-line"><span>开机静默启动 <small>启动后在系统托盘中运行</small></span><input id="setting-login" type="checkbox"></label><label id="setting-dock-line" class="toggle-line" hidden><span>关闭界面后显示程序坞图标</span><input id="setting-dock" type="checkbox"></label><label class="toggle-line"><span>电池供电时暂停</span><input id="setting-battery" type="checkbox"></label><label class="toggle-line"><span>全屏时暂停</span><input id="setting-fullscreen" type="checkbox"></label><label class="toggle-line"><span>全屏时显示桌宠 <small>同时启用暂停时，桌宠会显示但保持静止</small></span><input id="setting-fullscreen-visible" type="checkbox"></label><label class="toggle-line"><span>桌宠视频静音</span><input id="setting-mute" type="checkbox"></label></section></div>
   <script src="manager.js"></script>
 </body>
 </html>

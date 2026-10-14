@@ -8,7 +8,14 @@ const { Store } = require('./store');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 const startupHidden = process.argv.includes('--hidden');
 const portableExe = process.env.PORTABLE_EXECUTABLE_FILE || (app.isPackaged ? process.execPath : path.join(__dirname, '..', 'DeskPets-dev.exe'));
-const dataDir = process.env.DESKPETS_TEST_USERDATA && !app.isPackaged ? process.env.DESKPETS_TEST_USERDATA : path.join(path.dirname(portableExe), 'petsdata');
+const isWindows = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
+const macDesktopPetLevel = -2147483622; // kCGDesktopWindowLevel + 1
+const dataDir = process.env.DESKPETS_TEST_USERDATA && !app.isPackaged
+  ? process.env.DESKPETS_TEST_USERDATA
+  : isMac && app.isPackaged
+    ? path.join(process.resourcesPath, 'petsdata')
+    : path.join(path.dirname(portableExe), 'petsdata');
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(path.join(dataDir, 'cache'), { recursive: true });
 app.setPath('userData', dataDir);
@@ -24,8 +31,8 @@ let onBattery = false;
 let fullscreen = false;
 let fullscreenMonitor;
 let cursorTimer;
+let dockTimer;
 const overlays = new Map();
-const isWindows = process.platform === 'win32';
 const scripts = app.isPackaged ? path.join(process.resourcesPath, 'windows') : path.join(__dirname, 'windows');
 const hasInstanceLock = app.requestSingleInstanceLock();
 if (!hasInstanceLock) app.quit();
@@ -35,7 +42,7 @@ function applyTheme() {
   if (nativeTheme.themeSource !== store.state.settings.theme) nativeTheme.themeSource = store.state.settings.theme;
   const dark = resolvedTheme() === 'dark';
   if (manager && !manager.isDestroyed()) {
-    manager.setTitleBarOverlay({ color: dark ? '#171c21' : '#f3f6f2', symbolColor: dark ? '#e9f0eb' : '#203029', height: 42 });
+    if (!isMac) manager.setTitleBarOverlay({ color: dark ? '#171c21' : '#f3f6f2', symbolColor: dark ? '#e9f0eb' : '#203029', height: 42 });
     manager.setBackgroundColor(dark ? '#101318' : '#f4f7f3');
   }
   broadcast('theme:changed', resolvedTheme());
@@ -78,6 +85,17 @@ function pausedReasons() {
   return reasons;
 }
 function updatePlayback() { broadcast('playback:changed', { paused: pausedReasons().length > 0, reasons: pausedReasons() }); updateTray(); }
+function syncDockIcon() {
+  if (!isMac || !store) return;
+  clearTimeout(dockTimer);
+  if (store.state.settings.showDockIconWhenClosed || (manager && !manager.isDestroyed() && manager.isVisible())) {
+    app.dock.show().catch(error => console.error('Dock icon:', error));
+  } else {
+    dockTimer = setTimeout(() => {
+      if (!store.state.settings.showDockIconWhenClosed && (!manager || manager.isDestroyed() || !manager.isVisible())) app.dock.hide();
+    }, 1100);
+  }
+}
 function notify(message, type = 'info') { broadcast('notice', { message, type }); }
 function sync() {
   syncOverlays();
@@ -94,6 +112,7 @@ function createManager() {
     width: 1220, height: 800, minWidth: 970, minHeight: 620,
     title: 'DeskPets', backgroundColor: '#101318', show: false,
     titleBarStyle: 'hidden',
+    ...(isMac ? { trafficLightPosition: { x: 12, y: 13 } } : {}),
     titleBarOverlay: { color: '#171c21', symbolColor: '#e9f0eb', height: 42 },
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
@@ -101,7 +120,7 @@ function createManager() {
   applyTheme();
   manager.webContents.on('console-message', details => { if (details.level === 'error') console.error('Manager:', details.message); });
   manager.once('ready-to-show', () => {
-    if (!startupHidden) manager.show();
+    if (!startupHidden && !(isMac && app.getLoginItemSettings().wasOpenedAtLogin)) manager.show();
     if (!app.isPackaged && process.env.DESKPETS_SCREENSHOT) {
       setTimeout(async () => {
         try {
@@ -124,6 +143,8 @@ function createManager() {
   manager.on('close', event => {
     if (!app.isQuitting) { event.preventDefault(); manager.hide(); }
   });
+  manager.on('show', syncDockIcon);
+  manager.on('hide', syncDockIcon);
 }
 function showManager() { if (manager) { manager.show(); manager.focus(); } }
 
@@ -141,6 +162,12 @@ function createMusicPlayer() {
 }
 
 function overlayKey(displayId, layer) { return `${displayId}:${layer}`; }
+function shouldShowOverlay(layer) {
+  if (!store.state.settings.showPets) return false;
+  if (!fullscreen) return layer !== 'fullscreen-desktop';
+  if (!store.state.settings.showOnFullscreen) return false;
+  return layer !== 'desktop';
+}
 function createOverlay(display, layer) {
   const win = new BrowserWindow({
     x: display.bounds.x, y: display.bounds.y,
@@ -148,12 +175,18 @@ function createOverlay(display, layer) {
     frame: false, transparent: true, backgroundColor: '#00000000',
     hasShadow: false, focusable: false, skipTaskbar: true,
     show: false, resizable: false,
-    alwaysOnTop: layer === 'floating',
+    alwaysOnTop: layer !== 'desktop',
+    ...(isMac && layer === 'desktop' ? { type: 'desktop' } : {}),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   });
   win.deskPetsReady = false;
   win.setIgnoreMouseEvents(true, { forward: true });
-  if (layer === 'floating') win.setAlwaysOnTop(true, 'floating');
+  if (layer !== 'desktop') win.setAlwaysOnTop(true, 'floating');
+  if (isMac) {
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: store.state.settings.showOnFullscreen });
+    if (layer === 'desktop') win.setAlwaysOnTop(true, 'normal', macDesktopPetLevel);
+    win.setHiddenInMissionControl(true);
+  }
   win.loadFile(path.join(__dirname, 'overlay.html'), { query: { display: display.id, layer } });
   win.webContents.once('did-finish-load', () => {
     win.webContents.send('state:changed', publicState());
@@ -162,11 +195,11 @@ function createOverlay(display, layer) {
     if (layer === 'desktop' && isWindows) {
       attachToDesktop(win).then(ok => {
         if (!win.isDestroyed()) {
-          if (ok) { win.deskPetsReady = true; console.log(`Desktop layer attached: ${display.id}`); if (store.state.settings.showPets) { win.showInactive(); setTimeout(() => { if (!win.isDestroyed()) attachToDesktop(win); }, 250); } }
+          if (ok) { win.deskPetsReady = true; console.log(`Desktop layer attached: ${display.id}`); if (shouldShowOverlay(layer)) { win.showInactive(); setTimeout(() => { if (!win.isDestroyed()) attachToDesktop(win); }, 250); } }
           else { win.destroy(); const key = overlayKey(display.id, layer); if (overlays.get(key) === win) overlays.delete(key); notify('桌面层挂载失败。请尝试悬浮模式，或重启 Windows 资源管理器后重试。', 'error'); }
         }
       });
-    } else { win.deskPetsReady = true; if (store.state.settings.showPets) win.showInactive(); }
+    } else { win.deskPetsReady = true; if (shouldShowOverlay(layer)) win.showInactive(); }
   });
   win.on('closed', () => { const key = overlayKey(display.id, layer); if (overlays.get(key) === win) overlays.delete(key); });
   return win;
@@ -180,7 +213,10 @@ function syncOverlays() {
     if (!pet.visible || !pet.assetIds.length) continue;
     if (!pet.assetIds.some(id => store.state.assets.some(asset => asset.id === id && asset.status === 'ready' && fs.existsSync(asset.playbackPath || assetPath(asset))))) continue;
     const display = getDisplayForPet(pet, list);
-    if (display) needed.add(overlayKey(display.id, pet.layer));
+    if (display) {
+      needed.add(overlayKey(display.id, pet.layer));
+      if (fullscreen && store.state.settings.showOnFullscreen && pet.layer === 'desktop') needed.add(overlayKey(display.id, 'fullscreen-desktop'));
+    }
   }
   for (const [key, win] of overlays) {
     if (!needed.has(key)) { overlays.delete(key); if (!win.isDestroyed()) win.destroy(); }
@@ -197,8 +233,8 @@ function syncOverlays() {
         win.setBounds(display.bounds);
       }
     }
-    if (store.state.settings.showPets && win.deskPetsReady && !win.isVisible()) win.showInactive();
-    if (!store.state.settings.showPets && win.isVisible()) win.hide();
+    if (shouldShowOverlay(layer) && win.deskPetsReady && !win.isVisible()) win.showInactive();
+    if (!shouldShowOverlay(layer) && win.isVisible()) win.hide();
   }
 }
 
@@ -225,11 +261,48 @@ async function applyWallpaper(assetId) {
   if (!assetId) return;
   const asset = store.state.assets.find(item => item.id === assetId && item.kind === 'image');
   if (!asset || !fs.existsSync(assetPath(asset))) { notify('壁纸图片不存在。', 'error'); return; }
-  if (!isWindows) { notify('当前版本仅在 Windows 上更换壁纸。', 'error'); return; }
+  if (isMac) {
+    const result = await runMacScript('set-wallpaper', [assetPath(asset)]);
+    if (!result.ok) notify(`更换壁纸失败：${result.output}`, 'error');
+    return;
+  }
+  if (!isWindows) { notify('当前平台暂不支持更换壁纸。', 'error'); return; }
   const result = await runWindowsScript('set-wallpaper.ps1', [assetPath(asset)]);
   if (!result.ok) notify(`更换壁纸失败：${result.output}`, 'error');
 }
+function runMacScript(name, args = []) {
+  return new Promise(resolve => {
+    const script = app.isPackaged ? path.join(process.resourcesPath, 'mac', name) : path.join(__dirname, '..', 'build', 'mac', name);
+    const child = spawn(script, args, { windowsHide: true });
+    let output = '';
+    let error = '';
+    child.stdout.on('data', data => { output += data.toString(); });
+    child.stderr.on('data', data => { error += data.toString(); });
+    child.on('error', err => resolve({ ok: false, output: err.message }));
+    child.on('close', code => resolve({ ok: code === 0, output: (output || error).trim() }));
+  });
+}
 function startFullscreenMonitor() {
+  if (isMac) {
+    const executable = app.isPackaged
+      ? path.join(process.resourcesPath, 'mac', 'fullscreen-monitor')
+      : path.join(__dirname, '..', 'build', 'mac', 'fullscreen-monitor');
+    fullscreenMonitor = spawn(executable);
+    let buffer = '';
+    fullscreenMonitor.stdout.on('data', data => {
+      buffer += data.toString();
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (line === 'FULLSCREEN 1' || line === 'FULLSCREEN 0') {
+          const next = line.endsWith('1');
+          if (next !== fullscreen) { fullscreen = next; syncOverlays(); updatePlayback(); }
+        }
+      }
+    });
+    fullscreenMonitor.on('error', error => console.error('Fullscreen monitor:', error));
+    return;
+  }
   if (!isWindows) return;
   fullscreenMonitor = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(scripts, 'fullscreen-monitor.ps1'), '-ExcludeProcessId', String(process.pid)], { windowsHide: true });
   let buffer = '';
@@ -240,7 +313,7 @@ function startFullscreenMonitor() {
     for (const line of lines) {
       if (line === 'FULLSCREEN 1' || line === 'FULLSCREEN 0') {
         const next = line.endsWith('1');
-        if (next !== fullscreen) { fullscreen = next; updatePlayback(); }
+        if (next !== fullscreen) { fullscreen = next; syncOverlays(); updatePlayback(); }
       }
     }
   });
@@ -248,9 +321,11 @@ function startFullscreenMonitor() {
 }
 
 function createTray() {
-  tray = new Tray(nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'icon.png')));
+  const icon = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'icon.png'));
+  tray = new Tray(isMac ? icon.resize({ width: 18, height: 18 }) : icon);
   tray.setToolTip('DeskPets');
   tray.on('double-click', showManager);
+  if (isMac) tray.on('click', showManager);
   updateTray();
 }
 function updateTray() {
@@ -364,10 +439,20 @@ function registerIpc() {
     state.scenes.find(item => item.id === state.activeSceneId).musicVolume = Math.min(1, Math.max(0, Number(volume) || 0));
   }));
   ipcMain.handle('settings:update', (_event, patch) => {
-    const allowed = ['launchAtLogin', 'pauseOnBattery', 'pauseOnFullscreen', 'mute', 'showPets'];
+    const allowed = ['launchAtLogin', 'pauseOnBattery', 'pauseOnFullscreen', 'showOnFullscreen', 'mute', 'showPets'];
+    if (isMac) allowed.push('showDockIconWhenClosed');
     update(state => { for (const key of allowed) if (Object.hasOwn(patch || {}, key)) state.settings[key] = Boolean(patch[key]); });
+    if (isMac && Object.hasOwn(patch || {}, 'showDockIconWhenClosed')) {
+      syncDockIcon();
+    }
+    if (isMac && Object.hasOwn(patch || {}, 'showOnFullscreen')) {
+      for (const win of overlays.values()) if (!win.isDestroyed()) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: store.state.settings.showOnFullscreen });
+    }
     if (['dark', 'light', 'system'].includes(patch?.theme)) { update(state => { state.settings.theme = patch.theme; }); applyTheme(); }
-    if (Object.hasOwn(patch || {}, 'launchAtLogin')) app.setLoginItemSettings({ openAtLogin: store.state.settings.launchAtLogin, path: portableExe, args: ['--hidden'] });
+    if (Object.hasOwn(patch || {}, 'launchAtLogin')) {
+      if (isMac) app.setLoginItemSettings({ openAtLogin: store.state.settings.launchAtLogin });
+      else app.setLoginItemSettings({ openAtLogin: store.state.settings.launchAtLogin, path: portableExe, args: ['--hidden'] });
+    }
   });
   ipcMain.handle('playback:pause', (_event, value) => { userPaused = Boolean(value); updatePlayback(); return userPaused; });
 }
@@ -375,10 +460,12 @@ function registerIpc() {
 if (hasInstanceLock) app.whenReady().then(() => {
   store = new Store(path.join(app.getPath('userData'), 'deskpets.json'));
   if (store.state.settings.launchAtLogin && isWindows) app.setLoginItemSettings({ openAtLogin: true, path: portableExe, args: ['--hidden'] });
+  if (store.state.settings.launchAtLogin && isMac) app.setLoginItemSettings({ openAtLogin: true });
   applyTheme();
   onBattery = powerMonitor.isOnBatteryPower();
   registerIpc();
   createManager();
+  syncDockIcon();
   createMusicPlayer();
   createTray();
   syncOverlays();
@@ -411,4 +498,4 @@ function displayChanged() {
 }
 app.on('activate', showManager);
 app.on('window-all-closed', () => {});
-app.on('before-quit', () => { app.isQuitting = true; if (fullscreenMonitor) fullscreenMonitor.kill(); if (cursorTimer) clearInterval(cursorTimer); });
+app.on('before-quit', () => { app.isQuitting = true; if (fullscreenMonitor) fullscreenMonitor.kill(); if (cursorTimer) clearInterval(cursorTimer); if (dockTimer) clearTimeout(dockTimer); });

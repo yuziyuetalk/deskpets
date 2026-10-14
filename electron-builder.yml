@@ -1,6 +1,5 @@
 appId: io.deskpets.app
 productName: DeskPets
-electronDist: node_modules/electron/dist
 directories:
   output: dist
 files:
@@ -18,3 +17,16 @@ win:
   icon: assets/icon.ico
 portable:
   artifactName: DeskPets-${version}-portable.exe
+mac:
+  target:
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  icon: assets/icon.icns
+  identity: null
+  extraResources:
+    - from: build/mac
+      to: mac
+    - from: resources/initial-data
+      to: petsdata

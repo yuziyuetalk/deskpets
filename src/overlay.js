@@ -1,5 +1,6 @@
 const query = new URLSearchParams(location.search);
 const displayId = query.get('display'), layer = query.get('layer');
+const petLayer = layer === 'fullscreen-desktop' ? 'desktop' : layer;
 const root = document.getElementById('pets');
 let state, displays = [], playback = { paused: false }, cursor = { x: -1e5, y: -1e5 };
 const items = new Map();
@@ -17,9 +18,8 @@ function createPet(pet) {
   const particles = document.createElement('div');
   particles.className = 'particles';
   box.append(video, canvas, particles); root.append(box);
-  const r = { box, video, canvas, context, particles, pet, signature: '', started: performance.now(), wanderFrom: { x: 0, y: 0 }, wanderTo: { x: 0, y: 0 }, hovered: false, lastParticle: 0 };
-  const drawFrame = () => {
-    if (!box.isConnected) return;
+  const r = { box, video, canvas, context, particles, pet, signature: '', started: performance.now(), wanderFrom: { x: pet.x, y: pet.y }, wanderTo: { x: pet.x, y: pet.y }, followX: pet.x, followY: pet.y, hovered: false, lastParticle: 0 };
+  const paintFrame = () => {
     if (video.videoWidth && video.videoHeight) {
       const targetWidth = Math.min(video.videoWidth, Math.max(64, Math.ceil(box.clientWidth * devicePixelRatio)));
       const targetHeight = Math.max(1, Math.round(targetWidth * video.videoHeight / video.videoWidth));
@@ -29,8 +29,14 @@ function createPet(pet) {
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
     }
+  };
+  const drawFrame = () => {
+    if (!box.isConnected) return;
+    paintFrame();
     if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(drawFrame);
   };
+  video.addEventListener('loadeddata', paintFrame);
+  video.addEventListener('seeked', paintFrame);
   if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(drawFrame);
   else r.drawTimer = setInterval(drawFrame, 33);
   video.addEventListener('error', () => { box.style.display = 'none'; });
@@ -38,6 +44,15 @@ function createPet(pet) {
   return r;
 }
 function updatePet(r, pet) {
+  if (r.pet.motion !== pet.motion || r.pet.x !== pet.x || r.pet.y !== pet.y) {
+    r.wanderCycle = undefined;
+    r.wanderFrom = { x: pet.x, y: pet.y };
+    r.wanderTo = { x: pet.x, y: pet.y };
+    r.followX = pet.x;
+    r.followY = pet.y;
+    r.followAt = undefined;
+    r.started = performance.now();
+  }
   r.pet = pet;
   const playable = asset(pet.assetIds[0]);
   r.box.style.display = playable ? '' : 'none';
@@ -60,7 +75,7 @@ function render() {
   if (!scene) return;
   const visible = new Set();
   for (const pet of scene.pets) {
-    if (!pet.visible || pet.layer !== layer || displayFor(pet)?.id !== displayId || !pet.assetIds.some(asset)) continue;
+    if (!pet.visible || pet.layer !== petLayer || displayFor(pet)?.id !== displayId || !pet.assetIds.some(asset)) continue;
     visible.add(pet.id);
     updatePet(items.get(pet.id) || createPet(pet), pet);
   }
@@ -68,7 +83,7 @@ function render() {
     r.video.pause(); r.video.removeAttribute('src'); r.video.load(); r.box.remove(); if (r.drawTimer) clearInterval(r.drawTimer); items.delete(id);
   }
 }
-function route(r, elapsed) {
+function route(r, elapsed, localX, localY) {
   const pet = r.pet, phase = (elapsed / (pet.motionDuration * 1000)) % 1, theta = phase * Math.PI * 2;
   switch (pet.motion) {
     case 'horizontal': return { x: Math.sin(theta) * .12, y: 0 };
@@ -85,11 +100,38 @@ function route(r, elapsed) {
     case 'wander': {
       const cycle = Math.floor(elapsed / (pet.motionDuration * 1000));
       if (r.wanderCycle !== cycle) {
-        r.wanderCycle = cycle; r.wanderFrom = r.wanderTo;
-        r.wanderTo = { x: (Math.random() - .5) * .2, y: (Math.random() - .5) * .14 };
+        r.wanderFrom = r.wanderTo;
+        r.wanderTo = { x: Math.random() * Math.max(0, 1 - pet.width), y: Math.random() * Math.max(0, 1 - r.box.offsetHeight / innerHeight) };
+        r.wanderCycle = cycle;
       }
       const f = phase * phase * (3 - 2 * phase);
-      return { x: r.wanderFrom.x + (r.wanderTo.x - r.wanderFrom.x) * f, y: r.wanderFrom.y + (r.wanderTo.y - r.wanderFrom.y) * f };
+      return { x: r.wanderFrom.x + (r.wanderTo.x - r.wanderFrom.x) * f - pet.x, y: r.wanderFrom.y + (r.wanderTo.y - r.wanderFrom.y) * f - pet.y };
+    }
+    case 'follow': {
+      if (localX < 0 || localX > innerWidth || localY < 0 || localY > innerHeight) return { x: r.followX - pet.x, y: r.followY - pet.y };
+      const width = pet.width * innerWidth, height = r.box.offsetHeight;
+      const maxX = Math.max(0, innerWidth - width), maxY = Math.max(0, innerHeight - height);
+      const currentX = clamp(r.followX * innerWidth, 0, maxX), currentY = clamp(r.followY * innerHeight, 0, maxY);
+      const angle = Math.atan2(currentY + height / 2 - localY, currentX + width / 2 - localX);
+      const radius = Math.hypot(width, height) / 2 + 80;
+      let goalX = currentX, goalY = currentY, bestDistance = Infinity, bestClearance = -1;
+      for (let index = 0; index < 16; index++) {
+        const direction = angle + index * Math.PI / 8;
+        const x = clamp(localX + Math.cos(direction) * radius - width / 2, 0, maxX);
+        const y = clamp(localY + Math.sin(direction) * radius - height / 2, 0, maxY);
+        const clearance = Math.hypot(Math.max(x - localX, 0, localX - x - width), Math.max(y - localY, 0, localY - y - height));
+        const distance = Math.hypot(x - currentX, y - currentY);
+        if ((clearance >= 70 && (bestClearance < 70 || distance < bestDistance)) || (bestClearance < 70 && clearance > bestClearance)) {
+          goalX = x; goalY = y; bestDistance = distance; bestClearance = clearance;
+        }
+      }
+      const delta = Math.min(0.1, Math.max(0, (elapsed - (r.followAt ?? elapsed)) / 1000));
+      r.followAt = elapsed;
+      const distance = Math.hypot(goalX - currentX, goalY - currentY);
+      const step = Math.min(distance, 24 * delta, distance * (1 - Math.exp(-delta / 4)));
+      r.followX = (currentX + (distance ? (goalX - currentX) / distance * step : 0)) / innerWidth;
+      r.followY = (currentY + (distance ? (goalY - currentY) / distance * step : 0)) / innerHeight;
+      return { x: r.followX - pet.x, y: r.followY - pet.y };
     }
   }
   return { x: 0, y: 0 };
@@ -118,7 +160,7 @@ function tick(now) {
   if (!display) return;
   const localX = cursor.x - display.bounds.x, localY = cursor.y - display.bounds.y;
   for (const r of items.values()) {
-    const pet = r.pet, offset = route(r, now - r.started);
+    const pet = r.pet, offset = route(r, now - r.started, localX, localY);
     const x = clamp(pet.x + offset.x, 0, Math.max(0, 1 - pet.width));
     const y = clamp(pet.y + offset.y, 0, Math.max(0, 1 - r.box.offsetHeight / innerHeight));
     r.box.style.transform = pet.motion === 'fixed' ? '' : `translate(${(x - pet.x) * innerWidth}px,${(y - pet.y) * innerHeight}px)`;

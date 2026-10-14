@@ -2,13 +2,17 @@
   "name": "deskpets",
   "version": "0.3.0",
   "private": true,
-  "description": "Transparent video companions for the Windows desktop",
+  "description": "Transparent video companions for macOS and Windows desktops",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
+    "prestart": "node scripts/prepare-start.js",
     "check": "node --check src/main.js && node --check src/store.js && node --check src/preload.js && node --check src/manager.js && node --check src/overlay.js && node --check src/music.js",
     "postinstall": "node node_modules/electron/install.js",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win --config.electronDist=node_modules/electron/dist",
+    "build:mac": "node scripts/build-mac-helper.js && electron-builder --mac",
+    "build:mac:arm64": "node scripts/build-mac-helper.js && electron-builder --mac zip --arm64",
+    "build:mac:x64": "node scripts/build-mac-helper.js && electron-builder --mac zip --x64"
   },
   "devDependencies": {
     "electron": "^44.0.0",
