@@ -1,0 +1,29 @@
+# Dependencies and build output
+node_modules/
+dist/
+out/
+build/
+coverage/
+
+# Local app data and temporary test files
+petsdata/
+tmp/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS and editor files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local environment files
+.env
+.env.*
+!.env.example

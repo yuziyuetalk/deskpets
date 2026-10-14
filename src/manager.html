@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; media-src 'self' file:; style-src 'self'; script-src 'self'">
+  <title>DeskPets</title>
+  <link rel="stylesheet" href="manager.css">
+</head>
+<body>
+  <div class="window-bar"><span class="window-title">✦ DeskPets</span><span class="window-subtitle">透明桌宠工作台</span><div class="window-tools"><button id="theme-cycle" class="title-icon" aria-label="切换外观主题" title="切换外观主题"></button><button id="open-settings" class="title-icon" aria-label="应用设置" title="应用设置">⚙</button></div></div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">✦</div><div><strong>DeskPets</strong><small>让桌面有点生命力</small></div></div>
+      <div class="section-head"><span>01 · 场景</span><button id="add-scene" class="icon-button" title="新建场景">＋</button></div>
+      <div id="scene-list" class="scene-list"></div>
+      <div class="section-head library-head"><span>02 · 素材库</span></div>
+      <div class="import-row"><button id="import-video" class="primary small">＋ 视频</button><button id="import-image" class="secondary small">＋ 壁纸</button><button id="import-audio" class="secondary small">＋ 音乐</button></div>
+      <div id="asset-list" class="asset-list"></div>
+      <div class="sidebar-foot">所有素材保存在 EXE 旁的 petsdata</div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="scene-title"><span class="eyebrow">当前场景</span><input id="scene-name" aria-label="场景名称" maxlength="80"></div>
+        <div class="top-actions"><span id="status-pill" class="status-pill">播放中</span><button id="toggle-pause" class="secondary">暂停</button><button id="toggle-show" class="secondary">隐藏桌宠</button><button id="delete-scene" class="text-danger">删除场景</button></div>
+      </header>
+      <div id="notice" class="notice" hidden></div>
+      <section class="stage-section">
+        <div class="stage-heading"><div><h1>03 · 布置桌面</h1><p>拖动桌宠调整位置；修改后自动保存。</p></div><div class="stage-switch"><label for="preview-display">显示器</label><select id="preview-display"></select></div></div>
+        <div class="stage-frame"><div id="stage" class="stage"><div class="stage-grid"></div><div id="stage-pets" class="stage-pets"></div><div id="route-layer"></div><div class="stage-label">DESKTOP PREVIEW</div></div></div>
+        <div class="stage-bottom"><span>提示：桌面模式在普通窗口下方且鼠标穿透；悬浮模式在窗口上方。</span><span id="stage-count">0 个桌宠</span></div>
+      </section>
+      <section class="bottom-panel"><div class="bottom-panel-head"><div><h2>04 · 场景中的桌宠</h2><p>选择后在右侧编辑外观、运动和互动</p></div></div><div id="pet-list" class="pet-list"></div></section>
+    </main>
+
+    <aside class="inspector">
+      <div class="inspector-head"><span>05 · 场景与桌宠</span><button id="show-scene-settings" class="inspector-link">场景设置</button></div>
+      <div id="inspector-content"></div>
+    </aside>
+  </div>
+  <div id="settings-backdrop" class="modal-backdrop" hidden><section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div class="dialog-head"><div><h2 id="settings-title">应用设置</h2><p>修改后立即生效</p></div><button id="close-settings" class="title-icon" aria-label="关闭设置">×</button></div><label class="toggle-line"><span>开机静默启动 <small>启动后在系统托盘中运行</small></span><input id="setting-login" type="checkbox"></label><label class="toggle-line"><span>电池供电时暂停</span><input id="setting-battery" type="checkbox"></label><label class="toggle-line"><span>全屏时暂停</span><input id="setting-fullscreen" type="checkbox"></label><label class="toggle-line"><span>桌宠视频静音</span><input id="setting-mute" type="checkbox"></label></section></div>
+  <script src="manager.js"></script>
+</body>
+</html>

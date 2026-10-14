@@ -1,0 +1,12 @@
+html,body,#pets{width:100%;height:100%;margin:0;overflow:hidden;background:transparent!important;pointer-events:none}
+*{box-sizing:border-box}
+.pet{position:absolute;pointer-events:none;transition:filter .25s ease}
+.pet video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.pet canvas{display:block;width:100%;height:auto;pointer-events:none;transform-origin:50% 85%}
+.pet.hovered{filter:drop-shadow(0 0 14px rgba(183,255,211,.7)) brightness(1.08)}
+.pet.hovered canvas{animation:pet-float 1.65s ease-in-out infinite}
+@keyframes pet-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-8px) rotate(1deg)}}
+.particles{position:absolute;inset:0;pointer-events:none;overflow:visible}
+.particle{position:absolute;width:5px;height:5px;border-radius:50%;background:#b8ffe2;box-shadow:0 0 9px 3px #8affcc88;animation:particle-fly 1.15s ease-out var(--delay) both}
+.particle.magic{width:8px;height:8px;background:#e5c9ff;box-shadow:0 0 12px 4px #ba8aff99}
+@keyframes particle-fly{0%{opacity:0;transform:translate(0,8px) scale(.5)}18%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.15)}}

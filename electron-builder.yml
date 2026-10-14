@@ -1,0 +1,20 @@
+appId: io.deskpets.app
+productName: DeskPets
+electronDist: node_modules/electron/dist
+directories:
+  output: dist
+files:
+  - src/**
+  - assets/**
+  - package.json
+extraResources:
+  - from: src/windows
+    to: windows
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  icon: assets/icon.ico
+portable:
+  artifactName: DeskPets-${version}-portable.exe
