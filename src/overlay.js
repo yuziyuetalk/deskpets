@@ -5,6 +5,7 @@ const root = document.getElementById('pets');
 let state, displays = [], playback = { paused: false }, cursor = { x: -1e5, y: -1e5 };
 const items = new Map();
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const SKIP_FRAMES = 1;
 const asset = id => state.assets.find(a => a.id === id && a.kind === 'video' && a.exists && a.status === 'ready');
 const displayFor = pet => displays.find(d => d.id === pet.monitorId) || displays.find(d => d.primary) || displays[0];
 
@@ -18,7 +19,7 @@ function createPet(pet) {
   const particles = document.createElement('div');
   particles.className = 'particles';
   box.append(video, canvas, particles); root.append(box);
-  const r = { box, video, canvas, context, particles, pet, signature: '', started: performance.now(), wanderFrom: { x: pet.x, y: pet.y }, wanderTo: { x: pet.x, y: pet.y }, followX: pet.x, followY: pet.y, hovered: false, lastParticle: 0 };
+  const r = { box, video, canvas, context, particles, pet, signature: '', started: performance.now(), wanderFrom: { x: pet.x, y: pet.y }, wanderTo: { x: pet.x, y: pet.y }, followX: pet.x, followY: pet.y, hovered: false, lastParticle: 0, frameCount: 0 };
   const paintFrame = () => {
     if (video.videoWidth && video.videoHeight) {
       const targetWidth = Math.min(video.videoWidth, Math.max(64, Math.ceil(box.clientWidth * devicePixelRatio)));
@@ -32,11 +33,15 @@ function createPet(pet) {
   };
   const drawFrame = () => {
     if (!box.isConnected) return;
-    paintFrame();
+    r.frameCount++;
+    if (r.frameCount > SKIP_FRAMES) paintFrame();
     if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(drawFrame);
   };
-  video.addEventListener('loadeddata', paintFrame);
-  video.addEventListener('seeked', paintFrame);
+  video.addEventListener('ended', () => {
+    r.frameCount = 0;
+    video.currentTime = 0;
+    if (!playback.paused && state.settings.showPets) video.play().catch(() => {});
+  });
   if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(drawFrame);
   else r.drawTimer = setInterval(drawFrame, 33);
   video.addEventListener('error', () => { box.style.display = 'none'; });
@@ -63,9 +68,9 @@ function updatePet(r, pet) {
   r.box.style.opacity = String(pet.opacity);
   r.video.playbackRate = pet.speed;
   r.video.muted = state.settings.mute;
-  r.video.loop = true;
+  r.video.loop = false;
   const signature = playable.url;
-  if (signature !== r.signature) { r.signature = signature; r.video.src = playable.url; }
+  if (signature !== r.signature) { r.signature = signature; r.frameCount = 0; r.video.src = playable.url; }
   if (playback.paused || !state.settings.showPets) r.video.pause();
   else if (r.video.paused) r.video.play().catch(() => {});
 }

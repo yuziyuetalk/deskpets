@@ -13,6 +13,7 @@ const asset = id => state.assets.find(item => item.id === id);
 const pet = () => scene().pets.find(item => item.id === selectedPetId);
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const format = value => Math.round(value * 100);
+const SKIP_PREVIEW_FRAMES = 1;
 document.body.classList.toggle('mac', window.deskPets.platform === 'darwin');
 $('#setting-dock-line').hidden = window.deskPets.platform !== 'darwin';
 $('#data-location').textContent = window.deskPets.platform === 'darwin'
@@ -51,6 +52,41 @@ function renderDisplaySelect() {
   const stage = $('#stage');
   if (current) stage.style.aspectRatio = `${current.bounds.width} / ${current.bounds.height}`;
 }
+function appendPreviewVideo(node, media, item) {
+  const video = document.createElement('video');
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d', { alpha: true });
+  let frameCount = 0;
+  video.autoplay = true;
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.playbackRate = item.speed;
+  video.addEventListener('ended', () => {
+    frameCount = 0;
+    video.currentTime = 0;
+    if (!playback.paused) video.play().catch(() => {});
+  });
+  video.addEventListener('error', () => { canvas.replaceWith(document.createTextNode('视频无法预览')); }, { once: true });
+  let drawTimer;
+  const drawFrame = () => {
+    if (!canvas.isConnected) { if (drawTimer) clearInterval(drawTimer); return; }
+    frameCount++;
+    if (frameCount > SKIP_PREVIEW_FRAMES && video.videoWidth && video.videoHeight) {
+      const width = Math.min(video.videoWidth, Math.max(64, Math.ceil(node.clientWidth * devicePixelRatio)));
+      const height = Math.max(1, Math.round(width * video.videoHeight / video.videoWidth));
+      if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+      context.clearRect(0, 0, width, height);
+      context.drawImage(video, 0, 0, width, height);
+    }
+    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(drawFrame);
+  };
+  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(drawFrame);
+  else drawTimer = setInterval(drawFrame, 33);
+  video.src = media.url;
+  node.append(video, canvas);
+  if (playback.paused) video.pause();
+}
 function renderStage() {
   const current = currentDisplay();
   if (!current) return;
@@ -58,6 +94,11 @@ function renderStage() {
   const stage = $('#stage');
   stage.style.backgroundImage = background && background.exists ? `url("${background.url.replace(/"/g, '%22')}")` : '';
   const holder = $('#stage-pets');
+  for (const previous of holder.querySelectorAll('video')) {
+    previous.pause();
+    previous.removeAttribute('src');
+    previous.load();
+  }
   holder.replaceChildren();
   for (const item of scene().pets.filter(item => item.visible && displayForPet(item)?.id === current.id)) {
     const media = asset(item.assetIds[0]);
@@ -74,16 +115,7 @@ function renderStage() {
     name.textContent = item.name;
     node.append(name);
     if (media.exists && media.status === 'ready') {
-      const video = document.createElement('video');
-      video.src = media.url;
-      video.autoplay = true;
-      video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
-      video.playbackRate = item.speed;
-      video.addEventListener('error', () => { video.replaceWith(document.createTextNode('视频无法预览')); }, { once: true });
-      node.append(video);
-      if (playback.paused) video.pause();
+      appendPreviewVideo(node, media, item);
     } else {
       const placeholder = document.createElement('div');
       placeholder.textContent = '素材不可用';
