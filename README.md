@@ -2,6 +2,10 @@
 
 DeskPets 是支持 Windows 和 macOS 的透明桌宠应用。导入透明背景的 WebM 视频后，可给桌宠设置显示器、位置、大小、透明度、播放速度、运动路线和鼠标靠近效果。图片可作为场景壁纸，音乐可加入场景播放列表。场景和设置自动保存。
 
+可直接下载整合包，详细内容请看视频 [《桌面宠物》自由啦，完全本地免费生成，透明背景视频生成 Wan-Alpha | 余子越](https://www.bilibili.com/video/BV12cJ26oEWm/)
+
+<img width="1672" height="941" alt="cover" src="https://github.com/user-attachments/assets/50a40bbd-d683-4c30-9f79-ec310ffb139a" />
+
 ## 环境与启动
 
 需要 Node.js 20 及以上版本、npm。macOS 还需要 Xcode Command Line Tools（用于编译壁纸辅助程序）。请在目标系统上安装依赖和打包：Windows 包在 Windows 上构建，macOS 包在 macOS 上构建。
